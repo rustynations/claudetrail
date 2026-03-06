@@ -1,0 +1,26 @@
+{
+  "name": "claudetrail",
+  "version": "0.1.0",
+  "description": "Session telemetry collection for Claude Code",
+  "keywords": ["claude", "claude-code", "telemetry", "analytics"],
+  "author": "rustynations",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rusty428/claudetrail"
+  },
+  "homepage": "https://claudetrail.com",
+  "bin": {
+    "claudetrail": "./dist/cli.js"
+  },
+  "main": "./dist/cli.js",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "~5.6.0"
+  }
+}
