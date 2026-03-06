@@ -51,6 +51,7 @@ function fireAndForgetIngest(baseUrl: string, apiKey: string, payload: Record<st
   });
 
   req.on('error', () => {});
+  req.on('socket', (socket) => { socket.unref(); });
   req.write(body);
   req.end();
 }
@@ -174,5 +175,6 @@ export async function hook(): Promise<void> {
       break;
   }
 
-  process.exit(0);
+  // No process.exit() — unref'd sockets let the process exit naturally
+  // after data is flushed to the OS buffer. Hook timeout (5s/15s) is the backstop.
 }

@@ -56,7 +56,8 @@ function uploadFile(uploadUrl: string, filePath: string): void {
     },
   });
 
-  req.on('error', () => {}); // Fire and forget
+  req.on('error', () => {});
+  req.on('socket', (socket) => { socket.unref(); });
   fileStream.pipe(req);
 }
 

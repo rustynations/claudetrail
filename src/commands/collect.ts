@@ -35,7 +35,8 @@ function fireAndForget(endpoint: string, apiKey: string, payload: Record<string,
     },
   });
 
-  req.on('error', () => {}); // Swallow errors — fire and forget
+  req.on('error', () => {});
+  req.on('socket', (socket) => { socket.unref(); });
   req.write(body);
   req.end();
 }
@@ -68,7 +69,4 @@ export async function collect(): Promise<void> {
   };
 
   fireAndForget(`${config.baseUrl}/ingest`, config.apiKey, payload);
-
-  // Exit immediately — don't wait for the HTTP request
-  process.exit(0);
 }

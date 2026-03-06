@@ -25,7 +25,8 @@ export function sendEvent(baseUrl: string, apiKey: string, event: ClaudeTrailEve
     },
   });
 
-  req.on('error', () => {}); // Fire and forget
+  req.on('error', () => {});
+  req.on('socket', (socket) => { socket.unref(); });
   req.write(body);
   req.end();
 }
