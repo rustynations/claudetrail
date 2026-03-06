@@ -48,12 +48,16 @@ function extractStopSummary(claudeJson: Record<string, unknown>, cwd: string | u
   const projects = claudeJson.projects as Record<string, Record<string, unknown>> | undefined;
   if (!projects || !cwd) return {};
 
-  // Project keys are root project paths; cwd may be a subdirectory.
-  // Find the longest project key that is a prefix of cwd.
+  // Claude Code stores session metrics on the project entry that was active.
+  // The key might be cwd itself, a parent of cwd, or a child of cwd.
+  // Find the best match: longest key that is a prefix of cwd (or vice versa)
+  // AND has lastCost defined (i.e., actually has session data).
   let project: Record<string, unknown> | null = null;
   let longestMatch = 0;
   for (const [projKey, projVal] of Object.entries(projects)) {
-    if (cwd.startsWith(projKey) && projKey.length > longestMatch) {
+    if (projVal.lastCost === undefined) continue;
+    const isPrefix = cwd.startsWith(projKey) || projKey.startsWith(cwd);
+    if (isPrefix && projKey.length > longestMatch) {
       longestMatch = projKey.length;
       project = projVal;
     }
