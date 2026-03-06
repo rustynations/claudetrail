@@ -44,16 +44,18 @@ function fireAndForgetIngest(baseUrl: string, apiKey: string, payload: Record<st
   req.end();
 }
 
-function extractStopSummary(claudeJson: Record<string, unknown>, sessionId: string): Record<string, unknown> {
+function extractStopSummary(claudeJson: Record<string, unknown>, cwd: string | undefined): Record<string, unknown> {
   const projects = claudeJson.projects as Record<string, Record<string, unknown>> | undefined;
-  if (!projects) return {};
+  if (!projects || !cwd) return {};
 
-  // Find the project matching this session, or fall back to any project with matching lastSessionId
+  // Project keys are root project paths; cwd may be a subdirectory.
+  // Find the longest project key that is a prefix of cwd.
   let project: Record<string, unknown> | null = null;
-  for (const proj of Object.values(projects)) {
-    if (proj.lastSessionId === sessionId) {
-      project = proj;
-      break;
+  let longestMatch = 0;
+  for (const [projKey, projVal] of Object.entries(projects)) {
+    if (cwd.startsWith(projKey) && projKey.length > longestMatch) {
+      longestMatch = projKey.length;
+      project = projVal;
     }
   }
 
@@ -92,7 +94,7 @@ function handleStop(config: { baseUrl: string; apiKey: string; legacyIngest: boo
   const { hook_event_name, session_id, ...stdinPayload } = input;
 
   // Enrich Stop event with .claude.json summary
-  const summary = claudeJson ? extractStopSummary(claudeJson, session_id) : {};
+  const summary = claudeJson ? extractStopSummary(claudeJson, input.cwd as string | undefined) : {};
 
   sendEvent(config.baseUrl, config.apiKey, {
     eventType: 'Stop',
