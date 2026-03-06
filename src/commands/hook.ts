@@ -44,34 +44,34 @@ function fireAndForgetIngest(baseUrl: string, apiKey: string, payload: Record<st
   req.end();
 }
 
-function extractStopSummary(claudeJson: Record<string, unknown>): Record<string, unknown> {
+function extractStopSummary(claudeJson: Record<string, unknown>, sessionId: string): Record<string, unknown> {
   const projects = claudeJson.projects as Record<string, Record<string, unknown>> | undefined;
   if (!projects) return {};
 
-  // Get the most recently active project's metrics
-  let latestProject: Record<string, unknown> | null = null;
-  let latestTime = '';
+  // Find the project matching this session, or fall back to any project with matching lastSessionId
+  let project: Record<string, unknown> | null = null;
   for (const proj of Object.values(projects)) {
-    const lastActive = proj.lastActiveAt as string || '';
-    if (lastActive > latestTime) {
-      latestTime = lastActive;
-      latestProject = proj;
+    if (proj.lastSessionId === sessionId) {
+      project = proj;
+      break;
     }
   }
 
-  if (!latestProject) return {};
+  if (!project) return {};
 
   return {
-    costUsd: latestProject.totalCost,
-    durationMs: latestProject.totalDurationMs,
-    apiDurationMs: latestProject.totalApiDurationMs,
-    tokensIn: latestProject.totalInputTokens,
-    tokensOut: latestProject.totalOutputTokens,
-    cacheCreation: latestProject.totalCacheCreationTokens,
-    cacheRead: latestProject.totalCacheReadTokens,
-    linesAdded: latestProject.linesAdded,
-    linesRemoved: latestProject.linesRemoved,
-    modelUsage: latestProject.modelUsage,
+    costUsd: project.lastCost,
+    durationMs: project.lastDuration,
+    apiDurationMs: project.lastAPIDuration,
+    toolDurationMs: project.lastToolDuration,
+    tokensIn: project.lastTotalInputTokens,
+    tokensOut: project.lastTotalOutputTokens,
+    cacheCreation: project.lastTotalCacheCreationInputTokens,
+    cacheRead: project.lastTotalCacheReadInputTokens,
+    linesAdded: project.lastLinesAdded,
+    linesRemoved: project.lastLinesRemoved,
+    modelUsage: project.lastModelUsage,
+    sessionMetrics: project.lastSessionMetrics,
   };
 }
 
@@ -92,7 +92,7 @@ function handleStop(config: { baseUrl: string; apiKey: string; legacyIngest: boo
   const { hook_event_name, session_id, ...stdinPayload } = input;
 
   // Enrich Stop event with .claude.json summary
-  const summary = claudeJson ? extractStopSummary(claudeJson) : {};
+  const summary = claudeJson ? extractStopSummary(claudeJson, session_id) : {};
 
   sendEvent(config.baseUrl, config.apiKey, {
     eventType: 'Stop',
