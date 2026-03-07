@@ -1,19 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import * as readline from 'readline';
 import { writeConfig, DEFAULT_BASE_URL } from '../config';
 
 const CLAUDE_SETTINGS_PATH = path.join(os.homedir(), '.claude', 'settings.json');
-
-const HOOK_EVENTS = ['SessionStart', 'PostToolUse', 'PostToolUseFailure', 'Stop', 'SessionEnd'] as const;
-const HOOK_TIMEOUTS: Record<string, number> = {
-  SessionStart: 5,
-  PostToolUse: 5,
-  PostToolUseFailure: 5,
-  Stop: 5,
-  SessionEnd: 15,
-};
 
 function readSettings(): Record<string, unknown> {
   try {
@@ -29,75 +19,42 @@ function writeSettings(settings: Record<string, unknown>): void {
   fs.writeFileSync(CLAUDE_SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf-8');
 }
 
-function askConfirm(question: string): Promise<boolean> {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise((resolve) => {
-    rl.question(`${question} (y/n) `, (answer) => {
-      rl.close();
-      resolve(answer.toLowerCase() === 'y');
-    });
-  });
-}
+function configureOtelSettings(apiKey: string, baseUrl: string): void {
+  const settings = readSettings();
 
-function hasClaudetrailHook(hookEntries: Record<string, unknown>[]): boolean {
-  return hookEntries.some((h: Record<string, unknown>) => {
-    const innerHooks = h.hooks as Record<string, unknown>[];
-    return innerHooks?.some((ih) => (ih.command as string)?.includes('claudetrail'));
-  });
-}
+  // Set OTel env vars in Claude Code settings
+  const env = (settings.env || {}) as Record<string, string>;
+  env['CLAUDE_CODE_ENABLE_TELEMETRY'] = '1';
+  env['OTEL_METRICS_EXPORTER'] = 'otlp';
+  env['OTEL_LOGS_EXPORTER'] = 'otlp';
+  env['OTEL_EXPORTER_OTLP_PROTOCOL'] = 'http/json';
+  env['OTEL_EXPORTER_OTLP_ENDPOINT'] = `${baseUrl}/otlp`;
+  env['OTEL_EXPORTER_OTLP_HEADERS'] = `x-api-key=${apiKey}`;
+  settings.env = env;
 
-function makeHookEntry(timeout: number) {
-  return {
-    matcher: '',
-    hooks: [
-      {
+  // Configure SessionEnd hook only
+  const hooks = (settings.hooks || {}) as Record<string, unknown[]>;
+  const sessionEndEntries = (hooks['SessionEnd'] || []) as Record<string, unknown>[];
+
+  const hasClaudetrail = sessionEndEntries.some((entry) => {
+    const innerHooks = entry.hooks as Record<string, unknown>[];
+    return innerHooks?.some((h) => (h.command as string)?.includes('claudetrail'));
+  });
+
+  if (!hasClaudetrail) {
+    sessionEndEntries.push({
+      matcher: '',
+      hooks: [{
         type: 'command',
         command: 'claudetrail hook',
-        timeout,
-      },
-    ],
-  };
-}
-
-export function configureHooks(): void {
-  const settings = readSettings();
-  const hooks = (settings.hooks || {}) as Record<string, unknown[]>;
-
-  for (const eventName of HOOK_EVENTS) {
-    const existing = (hooks[eventName] || []) as Record<string, unknown>[];
-
-    if (hasClaudetrailHook(existing)) {
-      // Upgrade existing entries: replace old `claudetrail collect` with `claudetrail hook`
-      // then remove duplicates (keep first claudetrail entry + all non-claudetrail entries)
-      let foundClaudetrail = false;
-      const deduped: Record<string, unknown>[] = [];
-      for (const entry of existing) {
-        const innerHooks = entry.hooks as Record<string, unknown>[];
-        const isClaudetrail = innerHooks?.some((ih) => (ih.command as string)?.includes('claudetrail'));
-        if (isClaudetrail) {
-          if (!foundClaudetrail) {
-            for (const ih of innerHooks) {
-              if ((ih.command as string)?.includes('claudetrail')) {
-                ih.command = 'claudetrail hook';
-                ih.timeout = HOOK_TIMEOUTS[eventName];
-              }
-            }
-            deduped.push(entry);
-            foundClaudetrail = true;
-          }
-          // Skip duplicates
-        } else {
-          deduped.push(entry);
-        }
-      }
-      hooks[eventName] = deduped;
-    } else {
-      existing.push(makeHookEntry(HOOK_TIMEOUTS[eventName]));
-      hooks[eventName] = existing;
-    }
+        timeout: 15,
+      }],
+    });
   }
 
+  hooks['SessionEnd'] = sessionEndEntries;
   settings.hooks = hooks;
+
   writeSettings(settings);
 }
 
@@ -112,22 +69,18 @@ export async function init(token: string): Promise<void> {
     process.exit(1);
   }
 
-  // Write config with baseUrl
-  writeConfig({
-    apiKey: token,
-    baseUrl: DEFAULT_BASE_URL,
-    legacyIngest: true,
-  });
+  // Write config for transcript upload
+  writeConfig({ apiKey: token, baseUrl: DEFAULT_BASE_URL });
   console.log('Token saved to ~/.claudetrail');
 
-  // Configure hooks
-  const confirmed = await askConfirm('Add ClaudeTrail hooks to Claude Code settings?');
-  if (!confirmed) {
-    console.log('Skipped hook configuration. Run "claudetrail upgrade" later to add hooks.');
-    return;
-  }
-
-  configureHooks();
-  console.log(`Hooks configured for: ${HOOK_EVENTS.join(', ')}`);
-  console.log('ClaudeTrail is now configured.');
+  // Configure Claude Code OTel settings + SessionEnd hook
+  configureOtelSettings(token, DEFAULT_BASE_URL);
+  console.log('Claude Code configured:');
+  console.log('  - OpenTelemetry → api.claudetrail.com/otlp');
+  console.log('  - SessionEnd hook → transcript upload');
+  console.log('');
+  console.log('ClaudeTrail is ready. Start a Claude Code session to begin collecting data.');
 }
+
+// Export for upgrade command
+export { configureOtelSettings };

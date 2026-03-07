@@ -1,5 +1,5 @@
 import { readConfig } from '../config';
-import { configureHooks } from './init';
+import { configureOtelSettings } from './init';
 
 export async function upgrade(): Promise<void> {
   const config = readConfig();
@@ -8,7 +8,8 @@ export async function upgrade(): Promise<void> {
     process.exit(1);
   }
 
-  configureHooks();
-  console.log('Hook configuration upgraded to multi-hook mode.');
-  console.log('All five hooks are now configured: SessionStart, PostToolUse, PostToolUseFailure, Stop, SessionEnd');
+  configureOtelSettings(config.apiKey, config.baseUrl);
+  console.log('Upgraded to OTel mode:');
+  console.log('  - OpenTelemetry → api.claudetrail.com/otlp');
+  console.log('  - SessionEnd hook → transcript upload');
 }

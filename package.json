@@ -1,6 +1,6 @@
 {
   "name": "claudetrail",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Session telemetry collection for Claude Code",
   "keywords": ["claude", "claude-code", "telemetry", "analytics"],
   "author": "rustynations",
