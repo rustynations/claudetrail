@@ -5,6 +5,9 @@ interface HookInput {
   hook_event_name: string;
   session_id: string;
   transcript_path?: string;
+  cwd?: string;
+  model?: string;
+  source?: string;
   [key: string]: unknown;
 }
 
@@ -29,28 +32,47 @@ export async function hook(): Promise<void> {
     process.exit(0);
   }
 
-  log('hook', `event=${input.hook_event_name} session=${input.session_id} transcript_path=${input.transcript_path ?? 'none'}`);
+  log('hook', `event=${input.hook_event_name} session=${input.session_id} cwd=${input.cwd ?? 'none'}`);
 
-  if (input.hook_event_name !== 'SessionEnd' || !input.session_id) {
-    log('hook', 'not a SessionEnd event, exiting');
+  if (!input.session_id) {
+    log('hook', 'no session_id, exiting');
     process.exit(0);
   }
 
-  if (input.transcript_path) {
-    // Spawn detached upload process — survives hook cancellation
-    const child = spawn(process.execPath, [
+  if (input.hook_event_name === 'SessionStart') {
+    // Spawn detached session-start process
+    const args = [
       require.resolve('../cli'),
-      'upload',
+      'session-start',
       input.session_id,
-      input.transcript_path,
-    ], {
+      input.cwd || '',
+      input.model || '',
+      input.source || 'startup',
+    ];
+    const child = spawn(process.execPath, args, {
       detached: true,
       stdio: 'ignore',
     });
     child.unref();
-    log('hook', `spawned upload process pid=${child.pid}`);
+    log('hook', `spawned session-start process pid=${child.pid}`);
+  } else if (input.hook_event_name === 'SessionEnd') {
+    if (input.transcript_path) {
+      const child = spawn(process.execPath, [
+        require.resolve('../cli'),
+        'upload',
+        input.session_id,
+        input.transcript_path,
+      ], {
+        detached: true,
+        stdio: 'ignore',
+      });
+      child.unref();
+      log('hook', `spawned upload process pid=${child.pid}`);
+    } else {
+      log('hook', 'no transcript_path in input, skipping upload');
+    }
   } else {
-    log('hook', 'no transcript_path in input, skipping upload');
+    log('hook', `unhandled event: ${input.hook_event_name}, exiting`);
   }
 
   log('hook', 'finished');
