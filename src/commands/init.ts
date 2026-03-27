@@ -35,7 +35,7 @@ function configureOtelSettings(apiKey: string, baseUrl: string): void {
   env['OTEL_LOG_TOOL_DETAILS'] = '1';
   settings.env = env;
 
-  // Configure SessionEnd hook only
+  // Configure hooks
   const hooks = (settings.hooks || {}) as Record<string, unknown[]>;
   const sessionEndEntries = (hooks['SessionEnd'] || []) as Record<string, unknown>[];
 
@@ -56,6 +56,27 @@ function configureOtelSettings(apiKey: string, baseUrl: string): void {
   }
 
   hooks['SessionEnd'] = sessionEndEntries;
+
+  // Configure SessionStart hook
+  const sessionStartEntries = (hooks['SessionStart'] || []) as Record<string, unknown>[];
+
+  const hasSessionStartClaudetrail = sessionStartEntries.some((entry) => {
+    const innerHooks = entry.hooks as Record<string, unknown>[];
+    return innerHooks?.some((h) => (h.command as string)?.includes('claudetrail'));
+  });
+
+  if (!hasSessionStartClaudetrail) {
+    sessionStartEntries.push({
+      matcher: '',
+      hooks: [{
+        type: 'command',
+        command: 'claudetrail hook',
+        timeout: 60,
+      }],
+    });
+  }
+
+  hooks['SessionStart'] = sessionStartEntries;
   settings.hooks = hooks;
 
   writeSettings(settings);
@@ -84,6 +105,7 @@ export async function init(token: string): Promise<void> {
   log('init', 'claude settings configured');
   console.log('Claude Code configured:');
   console.log('  - OpenTelemetry → api.claudetrail.com/otlp');
+  console.log('  - SessionStart hook → auto-project assignment');
   console.log('  - SessionEnd hook → transcript upload');
   console.log('');
   console.log('ClaudeTrail is ready. Start a Claude Code session to begin collecting data.');

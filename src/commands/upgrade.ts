@@ -15,6 +15,7 @@ export async function upgrade(): Promise<void> {
   log('upgrade', 'settings reconfigured');
   console.log('Upgraded to OTel mode:');
   console.log('  - OpenTelemetry → api.claudetrail.com/otlp');
+  console.log('  - SessionStart hook → auto-project assignment');
   console.log('  - SessionEnd hook → transcript upload');
 
   log('upgrade', 'finished');
