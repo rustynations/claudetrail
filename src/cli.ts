@@ -26,6 +26,19 @@ async function main() {
       await upload(sessionId, transcriptPath);
       break;
     }
+    case 'session-start': {
+      const { sessionStart } = await import('./commands/sessionStart');
+      const sessionId = process.argv[3];
+      const cwd = process.argv[4];
+      const model = process.argv[5] || '';
+      const source = process.argv[6] || 'startup';
+      if (!sessionId) {
+        console.error('Usage: claudetrail session-start <sessionId> <cwd> [model] [source]');
+        process.exit(1);
+      }
+      await sessionStart(sessionId, cwd, model, source);
+      break;
+    }
     case 'upgrade': {
       const { upgrade } = await import('./commands/upgrade');
       await upgrade();
