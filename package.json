@@ -12,7 +12,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/rusty428/claudetrail"
+    "url": "https://github.com/rustynations/claudetrail"
   },
   "homepage": "https://claudetrail.com",
   "bin": {
